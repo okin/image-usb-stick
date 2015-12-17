@@ -147,12 +147,18 @@ class OsxDisk (Disk):
 			self.children.append (child)
 
 	def is_valid (self):
+		ejectable = False
+		if 'ejectable' in self.attrs:
+			ejectable = self.attrs['ejectable'] == 'Yes'
+		elif 'removable_media' in self.attrs:
+			ejectable = self.attrs['removable_media'] == 'Yes'
+
 		return \
 			Disk.is_valid (self) and \
 			self.attrs['device_identifier'] == self.attrs['part_of_whole'] and \
 			self.attrs['protocol'] == 'USB' and \
 			self.attrs['read_only_media'] == 'No' and \
-			self.attrs['ejectable'] == 'Yes' and \
+			ejectable and \
 			self.attrs['whole'] == 'Yes'
 
 	def unmount (self):
