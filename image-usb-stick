@@ -42,8 +42,9 @@ def sh (cmd):
 
 def make_id (id):
 	return re.sub ('[_]{2,}', '_',
+		re.sub ('/', '_',
 		re.sub ('^[0-9]', '_',
-			re.sub ('[^A-Za-z0-9]', '_', id))) \
+			re.sub ('[^A-Za-z0-9]', '_', id)))) \
 			.strip () \
 			.strip ('_') \
 			.lower ()
@@ -120,15 +121,24 @@ class OsxDisk (Disk):
 			self.device_node = self.device_node.replace("/dev/disk", "/dev/rdisk")
 
 		self.is_mounted = 'mounted' in self.attrs and self.attrs['mounted'] == 'Yes'
-		self.name = self.attrs['device_media_name']
-		
+		try:
+			self.name = self.attrs['device_media_name']
+		except KeyError:
+			if not self.parent:
+				raise
+			self.name = self.parent.attrs['device_media_name']
+
 		if 'volume_name' in self.attrs and not self.attrs['volume_name'] == self.name:
 			self.name = '%s (%s)' % (self.name, self.attrs['volume_name'])
 		
 		if 'mount_point' in self.attrs:
 			self.mount_point = self.attrs['mount_point']
-		
-		m = re.match ('.*\((\d+) Bytes\).*', self.attrs['total_size'])
+
+		try:
+			total_size = self.attrs['total_size']
+		except KeyError:
+			total_size = self.attrs['disk_size']
+		m = re.match ('.*\((\d+) Bytes\).*', total_size)
 		if m:
 			self.size = float (m.group (1))
 
@@ -151,7 +161,7 @@ class OsxDisk (Disk):
 		if 'ejectable' in self.attrs:
 			ejectable = self.attrs['ejectable'] == 'Yes'
 		elif 'removable_media' in self.attrs:
-			ejectable = self.attrs['removable_media'] == 'Yes'
+			ejectable = self.attrs['removable_media'] in ('Yes', 'Removable')
 
 		return \
 			Disk.is_valid (self) and \
@@ -181,6 +191,9 @@ class OsxDiskManager (DiskManager):
 
 	def get_device (self, node):
 		if node.startswith ('/dev/'):
+			if ' ' in node.strip():
+				node, _ = node.split(' ', 1)
+
 			try:
 				disk = OsxDisk (node)
 				if disk.is_valid ():
